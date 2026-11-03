@@ -1,0 +1,24 @@
+{
+  "name": "artium",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm --prefix be run lint && npm --prefix FE run lint",
+    "lint:fix": "npm --prefix be run lint:fix && npm --prefix FE run lint:fix",
+    "format": "prettier --write \"be/src/**/*.ts\" \"be/test/**/*.ts\" \"FE/src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"be/src/**/*.ts\" \"be/test/**/*.ts\" \"FE/src/**/*.{ts,tsx,css}\"",
+    "typecheck": "npm --prefix be run typecheck && npm --prefix FE run typecheck",
+    "test": "npm --prefix be run test && npm --prefix FE run test",
+    "build": "npm --prefix be run build && npm --prefix FE run build",
+    "dev:be": "npm --prefix be run start:dev",
+    "dev:fe": "npm --prefix FE run dev",
+    "test:coverage": "npm --prefix be run test:cov && npm --prefix FE run test:coverage"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "husky": "^9.1.7",
+    "prettier": "^3.9.10"
+  }
+}

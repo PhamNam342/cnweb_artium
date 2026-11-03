@@ -1,0 +1,75 @@
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-artium_db}
+      POSTGRES_USER: ${POSTGRES_USER:-artium}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-artium} -d ${POSTGRES_DB:-artium_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - artium_network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - artium_network
+
+  backend:
+    build:
+      context: ./be
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./be/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - artium_network
+
+  frontend:
+    build:
+      context: ./FE
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - artium_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  artium_network:
+    driver: bridge
+

@@ -1,0 +1,48 @@
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+.nest/
+.next/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
+*.log
+logs/
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Testing
+.nyc_output/
+test-results/
+playwright-report/
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+*.continue-setup.bak
+
+# Local databases and volumes
+*.sqlite
+*.db
+
