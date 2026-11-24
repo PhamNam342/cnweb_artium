@@ -1,10 +1,5 @@
-
 node_modules
 dist
 coverage
 .env
-.env.*
-!.env.example
-.git
-.DS_Store
-
+apps/*/.env

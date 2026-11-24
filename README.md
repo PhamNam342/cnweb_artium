@@ -1,88 +1,43 @@
-# Artium Project
+# Artium
 
-## Tech Stack
+Nền tảng mua bán & cộng đồng nghệ thuật.
 
-- Backend: NestJS, TypeORM, PostgreSQL, Redis
-- Frontend: React, TypeScript, Vite
-- Infrastructure: Docker Compose
-- Package Manager: npm
-- Runtime: Node.js
+## Tech stack
 
-## Requirements
+- **Backend:** NestJS microservices (monorepo), TypeORM, PostgreSQL (database-per-service), RabbitMQ, Redis
+- **Thanh toán:** PayOS · **Đăng nhập:** email/mật khẩu + Google
+- **Frontend:** React, TypeScript, Vite
+- **Hạ tầng:** Docker Compose
 
-- Node.js version specified in `.nvmrc`
-- npm
-- Docker Desktop
-- Git
+## Tài liệu
 
-## Installation
+- Kiến trúc & cách chạy backend: [`be/README.md`](be/README.md)
+- Database (sinh tự động, luôn khớp nhau): [`docs/database/schema-entities.md`](docs/database/schema-entities.md),
+  [`docs/database/artium_database_erd.drawio`](docs/database/artium_database_erd.drawio)
+- Quy trình Git: [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md)
 
-### 1. Clone repository
-
-```bash
-git clone <REPOSITORY_URL>
-cd CNWEB_artium_blockchain
-```
-
-### 2. Setup Node.js
+## Bắt đầu nhanh
 
 ```bash
-nvm install
 nvm use
+npm install && npm --prefix be install && npm --prefix FE install
+
+cp .env.example .env && docker compose up -d     # Postgres (5 DB), Redis, RabbitMQ
+cp be/.env.example be/.env && cp FE/.env.example FE/.env
+npm run migrate                                  # migration cho mọi service
+
+npm run dev:be   # gateway :3000 + 5 service
+npm run dev:fe   # http://localhost:5173
 ```
 
-### 3. Install dependencies
+## Kiểm tra chất lượng
 
 ```bash
-npm run setup
+npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build
+npm run test:e2e   # backend e2e, cần Postgres đã migrate
 ```
 
-### 4. Configure environment variables
+## Git workflow
 
-Copy the example environment files and configure the values:
-
-```bash
-cp .env.example .env
-cp be/.env.example be/.env
-cp FE/.env.example FE/.env
-```
-
-### 5. Start infrastructure
-
-```bash
-docker compose up -d
-```
-
-### 6. Start development servers
-
-Backend:
-
-```bash
-npm run dev:be
-```
-
-Frontend:
-
-```bash
-npm run dev:fe
-```
-
-## Quality Checks
-
-```bash
-npm run lint
-npm run format:check
-npm run typecheck
-npm run test
-npm run build
-```
-
-## Git Workflow
-
-- `main`: Production branch
-- `develop`: Development integration branch
-- `feature/*`: Feature development
-- `fix/*`: Bug fixes
-- `hotfix/*`: Production hotfixes
-
-Always create a feature branch from `develop` before starting new work.
+- `main`: production · `develop`: tích hợp · `feature/*`, `fix/*`, `hotfix/*`
+- Luôn tạo nhánh feature từ `develop`.

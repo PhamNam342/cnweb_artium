@@ -1,0 +1,12 @@
+/** E2E test: cần PostgreSQL thật (xem README). */
+module.exports = {
+  moduleFileExtensions: ['js', 'json', 'ts'],
+  rootDir: '.',
+  testRegex: '.e2e-spec.ts$',
+  transform: { '^.+\\.(t|j)s$': 'ts-jest' },
+  testEnvironment: 'node',
+  testTimeout: 30000,
+  moduleNameMapper: {
+    '^@app/(common|database|messaging|contracts)(|/.*)$': '<rootDir>/libs/$1/src$2',
+  },
+};

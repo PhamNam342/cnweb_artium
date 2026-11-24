@@ -1,47 +1,45 @@
 {
-  "name": "be",
+  "name": "artium-backend",
   "version": "0.0.1",
-  "description": "",
+  "description": "Artium backend — NestJS microservices monorepo",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
+    "build": "node scripts/build-all.js",
+    "build:app": "nest build",
     "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main.js",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "dev": "node scripts/dev-all.js",
+    "start:prod": "node scripts/start-prod.js",
+    "migrate": "node scripts/migrate.js",
+    "lint": "eslint \"{apps,libs}/**/*.ts\"",
+    "lint:fix": "eslint \"{apps,libs}/**/*.ts\" --fix",
+    "format": "prettier --write \"{apps,libs}/**/*.ts\"",
+    "format:check": "prettier --check \"{apps,libs}/**/*.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typecheck": "tsc --noEmit",
-    "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
-    "migration:generate": "typeorm-ts-node-commonjs migration:generate",
-    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts"
+    "test:e2e": "jest --config ./jest-e2e.config.js --runInBand"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
-    "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.4.7",
     "@nestjs/throttler": "^6.7.1",
     "@nestjs/typeorm": "^11.0.3",
+    "amqplib": "^2.4.0",
     "argon2": "^0.45.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "ioredis": "^5.11.1",
+    "cookie-parser": "^1.4.7",
+    "google-auth-library": "^11.3.4",
+    "http-proxy-middleware": "^4.2.2",
     "joi": "^18.3.1",
-    "passport": "^0.7.0",
-    "passport-jwt": "^4.0.1",
+    "nodemailer": "^10.6.1",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -53,10 +51,11 @@
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
-    "@types/passport-jwt": "^4.0.1",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^7.2.1",
     "dotenv": "^18.0.9",
     "eslint": "^9.18.0",
@@ -80,16 +79,23 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "{apps,libs}/**/*.ts"
     ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/apps/",
+      "<rootDir>/libs/"
+    ],
+    "moduleNameMapper": {
+      "^@app/(common|database|messaging|contracts)(|/.*)$": "<rootDir>/libs/$1/src$2"
+    }
   },
   "overrides": {
     "@nestjs/cli": {

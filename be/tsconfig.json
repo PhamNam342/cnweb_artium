@@ -20,6 +20,17 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
     "strictBindCallApply": true,
-    "noFallthroughCasesInSwitch": true
-  }
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@app/common": ["libs/common/src"],
+      "@app/common/*": ["libs/common/src/*"],
+      "@app/database": ["libs/database/src"],
+      "@app/database/*": ["libs/database/src/*"],
+      "@app/messaging": ["libs/messaging/src"],
+      "@app/messaging/*": ["libs/messaging/src/*"],
+      "@app/contracts": ["libs/contracts/src"],
+      "@app/contracts/*": ["libs/contracts/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
 }

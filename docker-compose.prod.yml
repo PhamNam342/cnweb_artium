@@ -1,16 +1,39 @@
+# Production: 1 image backend dùng chung, mỗi container chạy một app (biến APP).
+x-backend: &backend
+  build:
+    context: ./be
+    dockerfile: Dockerfile
+  image: artium-backend
+  restart: unless-stopped
+  env_file:
+    - ./.env
+  networks:
+    - artium_network
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+
+x-db-env: &db-env
+  NODE_ENV: production
+  DB_MIGRATIONS_RUN: "true"
+  COOKIE_SECURE: ${COOKIE_SECURE:-true}
+  RABBITMQ_URL: amqp://${RABBITMQ_USER:-artium}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}@rabbitmq:5672
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-artium_db}
       POSTGRES_USER: ${POSTGRES_USER:-artium}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-artium} -d ${POSTGRES_DB:-artium_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-artium} -d identity_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,36 +43,87 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    networks:
+      - artium_network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-artium}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
       retries: 5
     networks:
       - artium_network
 
-  backend:
-    build:
-      context: ./be
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file:
-      - ./be/.env
+  identity:
+    <<: *backend
+    environment:
+      <<: *db-env
+      APP: identity
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-artium}:${POSTGRES_PASSWORD}@postgres:5432/identity_db
+
+  catalog:
+    <<: *backend
+    environment:
+      <<: *db-env
+      APP: catalog
+      PORT: 3002
+      DATABASE_URL: postgresql://${POSTGRES_USER:-artium}:${POSTGRES_PASSWORD}@postgres:5432/catalog_db
+
+  commerce:
+    <<: *backend
+    environment:
+      <<: *db-env
+      APP: commerce
+      PORT: 3003
+      DATABASE_URL: postgresql://${POSTGRES_USER:-artium}:${POSTGRES_PASSWORD}@postgres:5432/commerce_db
+
+  social:
+    <<: *backend
+    environment:
+      <<: *db-env
+      APP: social
+      PORT: 3004
+      DATABASE_URL: postgresql://${POSTGRES_USER:-artium}:${POSTGRES_PASSWORD}@postgres:5432/social_db
+
+  crm:
+    <<: *backend
+    environment:
+      <<: *db-env
+      APP: crm
+      PORT: 3005
+      DATABASE_URL: postgresql://${POSTGRES_USER:-artium}:${POSTGRES_PASSWORD}@postgres:5432/crm_db
+
+  gateway:
+    <<: *backend
+    depends_on:
+      - identity
+      - catalog
+      - commerce
+      - social
+      - crm
     environment:
       NODE_ENV: production
-      PORT: 3000
+      APP: gateway
+      GATEWAY_PORT: 3000
+      IDENTITY_URL: http://identity:3001
+      CATALOG_URL: http://catalog:3002
+      COMMERCE_URL: http://commerce:3003
+      SOCIAL_URL: http://social:3004
+      CRM_URL: http://crm:3005
     expose:
       - "3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - artium_network
 
   frontend:
     build:
@@ -61,15 +135,15 @@ services:
     ports:
       - "${FRONTEND_PORT:-80}:80"
     depends_on:
-      - backend
+      - gateway
     networks:
       - artium_network
 
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:
 
 networks:
   artium_network:
     driver: bridge
-

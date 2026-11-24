@@ -1,98 +1,129 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Artium Backend — NestJS microservices monorepo
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Kiến trúc
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```
+FE (Vite :5173) ──► gateway :3000 ──┬─► identity :3001 ─► identity_db
+                    /api/*           ├─► catalog  :3002 ─► catalog_db
+                                     ├─► commerce :3003 ─► commerce_db   (PayOS)
+                                     ├─► social   :3004 ─► social_db
+                                     └─► crm      :3005 ─► crm_db
+              mọi service ──(outbox → RabbitMQ exchange artium.events → inbox)──► service khác
 ```
 
-## Compile and run the project
+- **gateway**: chỉ định tuyến theo prefix (`apps/gateway/src/routes.ts`), không có DB, không parse body.
+- Mỗi service **một database riêng**; không join/đọc chéo DB. Tham chiếu sang service khác chỉ là UUID (REF).
+- **Xác thực**: identity ký access token JWT (HS256, 15 phút); mọi service tự verify bằng `JWT_ACCESS_SECRET` dùng chung
+  (`@app/common` → `CommonAuthModule`). Route mặc định cần đăng nhập; dùng `@Public()` để mở, `@Roles(UserRole.Seller)` để giới hạn.
+- **Refresh token**: chuỗi ngẫu nhiên, lưu SHA-256, xoay vòng mỗi lần refresh, cookie httpOnly `artium_rt` (path `/api/auth`).
+  Dùng lại token cũ ⇒ thu hồi cả phiên (phát hiện token bị đánh cắp).
+- **Event**: ghi vào bảng `outbox` trong cùng transaction với dữ liệu; `OutboxRelayService` publish lên RabbitMQ;
+  consumer dùng `InboxService.processOnce()` để xử lý đúng một lần.
 
-```bash
-# development
-$ npm run start
+Schema chi tiết: [`docs/database/schema-entities.md`](../docs/database/schema-entities.md) và
+[`docs/database/artium_database_erd.drawio`](../docs/database/artium_database_erd.drawio).
 
-# watch mode
-$ npm run start:dev
+## Cấu trúc thư mục
 
-# production mode
-$ npm run start:prod
+```
+be/
+├── apps/
+│   ├── gateway/     # API gateway (proxy)
+│   ├── identity/    # ✅ hoàn chỉnh: auth, users, sellers
+│   ├── catalog/     # khung: config, DB, outbox, auth, health
+│   ├── commerce/    # khung
+│   ├── social/      # khung
+│   └── crm/         # khung
+├── libs/
+│   ├── common/      # bootstrap, auth guard/decorator, env, health, utils
+│   ├── database/    # DatabaseModule, outbox/inbox, helper migration
+│   ├── messaging/   # RabbitMqService (publish/subscribe, tự reconnect)
+│   └── contracts/   # tên event + kiểu payload dùng chung
+└── scripts/         # dev-all, build-all, migrate, start-prod
 ```
 
-## Run tests
+## Chạy dev
 
 ```bash
-# unit tests
-$ npm run test
+# 1. Hạ tầng (ở thư mục gốc repo): Postgres (cổng 55432, tự tạo 5 DB), Redis, RabbitMQ
+cp .env.example .env
+docker compose up -d
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+# 2. Backend
+cd be
+cp .env.example .env            # đổi JWT_ACCESS_SECRET, điền GOOGLE_CLIENT_ID nếu dùng Google
+npm install
+npm run migrate -- all run      # migration cho cả 5 database
+npm run dev                     # chạy cả 6 app (watch)
+npm run dev -- identity gateway # hoặc chỉ một số app
 ```
 
-## Deployment
+- API qua gateway: `http://localhost:3000/api/...`
+- Swagger từng service: `http://localhost:3001/docs` (identity), `:3002/docs`, ...
+- RabbitMQ UI: `http://localhost:15672` (artium / artium_dev)
+- Mailpit (hộp thư ảo khi dev): `http://localhost:8025`
+- Postgres trong Docker dùng cổng **55432** trên máy (tránh đụng Postgres cài sẵn ở 5432).
+  Kết nối bằng TablePlus/DBeaver: `localhost:55432`, user `artium`, mật khẩu `artium_dev`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Lệnh thường dùng
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+| Lệnh | Tác dụng |
+| --- | --- |
+| `npm run migrate -- <service\|all> run` | Chạy migration |
+| `npm run migrate -- <service> revert` | Hoàn tác migration gần nhất |
+| `npm run migrate -- <service> generate TenMigration` | Sinh migration từ thay đổi entity |
+| `npm run build` | Build cả 6 app vào `dist/apps/*` |
+| `npm test` | Unit test |
+| `npm run test:e2e` | E2E (cần Postgres đã migrate) |
+| `npm run lint` / `npm run typecheck` | Kiểm tra code |
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+## API Identity
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+| Method | Path | Mô tả |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Đăng ký email/mật khẩu (gửi event email xác minh) |
+| POST | `/api/auth/login` | Đăng nhập |
+| POST | `/api/auth/google` | Đăng nhập Google — body `{ idToken }` từ Google Identity Services |
+| POST | `/api/auth/refresh` | Xoay vòng refresh token (cookie), trả access token mới |
+| POST | `/api/auth/logout` · `/logout-all` | Đăng xuất phiên hiện tại / mọi thiết bị |
+| POST | `/api/auth/verify-email` · `/resend-verification` | Xác minh email |
+| POST | `/api/auth/forgot-password` · `/reset-password` | Quên mật khẩu |
+| POST | `/api/auth/change-password` | Đổi (hoặc đặt lần đầu) mật khẩu |
+| GET/PATCH | `/api/users/me` | Xem / sửa tài khoản |
+| GET | `/api/users/:id` | Hồ sơ công khai tối thiểu |
+| POST | `/api/users/me/onboarding` | Hoàn tất popup chọn vai trò lần đầu (nhà sưu tầm / nghệ sĩ), trả access token mới |
+| GET | `/api/sellers/slug-availability?slug=` hoặc `?name=` | Kiểm tra / gợi ý slug trang nghệ sĩ |
+| POST | `/api/sellers/me` | Trở thành người bán (sau đó gọi `/auth/refresh` để có role seller) |
+| GET/PATCH | `/api/sellers/me` | Hồ sơ người bán |
+| PUT | `/api/sellers/me/websites` | Thay danh sách website/portfolio |
+| POST | `/api/sellers/me/verification-request` | Gửi yêu cầu xác minh |
+| PATCH | `/api/sellers/:id/verification` | (admin) duyệt/từ chối |
+| GET | `/api/sellers/:slug` | Trang công khai người bán |
 
-## Resources
+### Gửi email (SMTP)
 
-Check out a few resources that may come in handy when working with NestJS:
+Identity gửi email xác minh và đặt lại mật khẩu qua SMTP: event được ghi vào outbox → RabbitMQ →
+consumer `identity.mailer` (thư mục `apps/identity/src/mail/`) gửi mail. Mỗi message chỉ gửi một lần (bảng `inbox`),
+SMTP lỗi thì thử lại 3 lần (1s, 5s, 15s) rồi đẩy vào hàng đợi lỗi `identity.mailer.dlq` (xem ở RabbitMQ UI).
+Link đã hết hạn thì không gửi.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+| Môi trường | Cấu hình trong `be/.env` |
+| --- | --- |
+| Dev (Mailpit trong docker-compose) | `SMTP_HOST=localhost`, `SMTP_PORT=1025`, `SMTP_SECURE=false` — xem mail tại http://localhost:8025 |
+| Gmail | `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=<gmail>`, `SMTP_PASS=<App Password 16 ký tự>`, `MAIL_FROM="Artium <gmail>"` |
+| Không cấu hình | `SMTP_HOST=` trống → nội dung mail (kèm link) chỉ in ra log của identity |
 
-## Support
+Gmail yêu cầu bật xác minh 2 bước và tạo **App Password** (Tài khoản Google → Bảo mật → Mật khẩu ứng dụng);
+không dùng mật khẩu Gmail thường. Cần RabbitMQ đang chạy thì mail mới được gửi (event vẫn nằm an toàn trong outbox nếu broker tắt).
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+FE nên gọi API với `credentials: 'include'` để cookie refresh token được gửi kèm, và **không gọi `/auth/refresh` song song**
+(refresh token xoay vòng). Backend có ân hạn `REFRESH_REUSE_GRACE_SECONDS` (mặc định 10 giây) cho trường hợp nhiều tab.
 
-## Stay in touch
+## Thêm tính năng cho service khác (ví dụ catalog)
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+1. Viết entity theo đúng bảng trong `docs/database/schema-entities.md`.
+2. `npm run migrate -- catalog generate AddArtworks` → kiểm tra file sinh ra → `npm run migrate -- catalog run`.
+3. Phát event: `outbox.enqueue(manager, {...})` trong cùng transaction.
+4. Nhận event: `rabbit.subscribe({ queue: 'catalog.commerce-events', routingKeys: ['commerce.order.*'], handler })`
+   và bọc xử lý trong `inbox.processOnce(envelope.id, 'catalog.reserve', ...)`.
+5. Sửa schema thì sửa `docs/database/tools/schema_spec.py` rồi chạy `npm run docs:db` ở thư mục gốc.
