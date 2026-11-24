@@ -60,3 +60,58 @@ jobs:
       - name: Build
         run: npm run build
 
+
+  e2e-backend:
+    name: Backend E2E (PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: artium
+          POSTGRES_PASSWORD: artium_dev
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U artium"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: be
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: be/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Create service databases
+        env:
+          PGPASSWORD: artium_dev
+        run: |
+          for db in identity_db catalog_db commerce_db social_db crm_db; do
+            psql -h localhost -p 55432 -U artium -d postgres -c "CREATE DATABASE $db"
+          done
+
+      - name: Prepare env
+        run: |
+          sed "s#replace-with-a-random-secret-at-least-32-characters#ci-secret-$(openssl rand -hex 24)#" .env.example > .env
+
+      - name: Run migrations
+        run: npm run migrate -- all run
+
+      - name: E2E tests
+        run: npm run test:e2e

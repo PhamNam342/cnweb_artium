@@ -1,19 +1,20 @@
-
+# Hạ tầng cho môi trường dev. Các service NestJS chạy trên máy (npm run dev:be).
 services:
   postgres:
     image: postgres:16-alpine
     container_name: artium_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-artium_db}
       POSTGRES_USER: ${POSTGRES_USER:-artium}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-artium_dev}
+      POSTGRES_DB: postgres
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-artium} -d ${POSTGRES_DB:-artium_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-artium} -d identity_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,7 +34,33 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: artium_rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-artium}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-artium_dev}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672" # giao diện quản trị: http://localhost:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: artium_mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP cho backend (SMTP_HOST=localhost, SMTP_PORT=1025)
+      - "${MAILPIT_UI_PORT:-8025}:8025" # hộp thư ảo: http://localhost:8025
+
 volumes:
   postgres_data:
   redis_data:
-
+  rabbitmq_data:
