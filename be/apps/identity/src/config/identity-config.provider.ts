@@ -12,6 +12,9 @@ export const identityConfigProvider = {
     refreshReuseGraceSeconds: Number(c.get('REFRESH_REUSE_GRACE_SECONDS')),
     emailVerificationTtlHours: Number(c.get('EMAIL_VERIFICATION_TTL_HOURS')),
     passwordResetTtlMinutes: Number(c.get('PASSWORD_RESET_TTL_MINUTES')),
+    passwordChangeCodeTtlMinutes: Number(
+      c.get('PASSWORD_CHANGE_CODE_TTL_MINUTES'),
+    ),
     googleClientId: c.get<string>('GOOGLE_CLIENT_ID', ''),
     cookieSecure: c.get<string>('COOKIE_SECURE') === 'true',
     webOrigin: c.getOrThrow<string>('WEB_ORIGIN'),

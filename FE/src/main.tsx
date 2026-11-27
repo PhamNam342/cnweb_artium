@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import { AuthProvider } from './auth/AuthProvider.tsx';
 import './styles/global.css';
+import './styles/studio.css';
+import './styles/discover.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

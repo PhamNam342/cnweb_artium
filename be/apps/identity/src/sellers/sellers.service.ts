@@ -74,8 +74,9 @@ export class SellersService {
 
     const users = manager.getRepository(User);
     const user = await users.findOneByOrFail({ id: userId });
-    if (!user.roles.includes(UserRole.Seller)) {
-      user.roles = [...user.roles, UserRole.Seller];
+    // Người mua tạo hồ sơ bán => chuyển hẳn sang vai trò nghệ sĩ (mỗi tài khoản một vai trò)
+    if (user.role === UserRole.Collector) {
+      user.role = UserRole.Seller;
       await users.save(user);
     }
     await this.outbox.enqueue(

@@ -14,6 +14,12 @@ export const identityEnvSchema: Joi.PartialSchemaMap = {
     .default(10),
   EMAIL_VERIFICATION_TTL_HOURS: Joi.number().integer().min(1).default(24),
   PASSWORD_RESET_TTL_MINUTES: Joi.number().integer().min(5).default(30),
+  /** Hạn của mã 6 số đổi mật khẩu gửi qua email. */
+  PASSWORD_CHANGE_CODE_TTL_MINUTES: Joi.number()
+    .integer()
+    .min(1)
+    .max(60)
+    .default(10),
   /** Client ID OAuth của Google (Web). Bỏ trống => tắt đăng nhập Google. */
   GOOGLE_CLIENT_ID: Joi.string().allow('').default(''),
   /** true khi chạy HTTPS (production) để cookie refresh token có cờ Secure. */
@@ -26,6 +32,7 @@ export interface IdentityConfig {
   refreshReuseGraceSeconds: number;
   emailVerificationTtlHours: number;
   passwordResetTtlMinutes: number;
+  passwordChangeCodeTtlMinutes: number;
   googleClientId: string;
   cookieSecure: boolean;
   webOrigin: string;

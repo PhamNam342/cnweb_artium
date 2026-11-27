@@ -97,6 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resendVerification: async () => {
         await api('/auth/resend-verification', { method: 'POST', body: {} });
       },
+      requestPasswordCode: () =>
+        api<{ sentTo: string; expiresAt: string }>('/auth/password/change-code', {
+          method: 'POST',
+          body: {},
+        }),
+      changePasswordWithCode: async (code, newPassword) =>
+        applySession(
+          await api<AuthResponse>('/auth/password/change-with-code', {
+            body: { code, newPassword },
+          }),
+        ),
+      updateUser: (u) => setUser(u),
     }),
     [status, user, applySession, clearSession, refresh],
   );

@@ -8,7 +8,7 @@ export enum UserRole {
 export interface AccessTokenPayload {
   sub: string;
   email: string;
-  roles: UserRole[];
+  role: UserRole;
   /** email đã xác minh */
   ev: boolean;
 }
@@ -17,6 +17,6 @@ export interface AccessTokenPayload {
 export interface AuthUser {
   id: string;
   email: string;
-  roles: UserRole[];
+  role: UserRole;
   emailVerified: boolean;
 }

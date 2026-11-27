@@ -7,6 +7,7 @@ export * from './config/env.schema';
 export * from './config/service-config.module';
 export * from './config/load-env';
 export * from './http/bootstrap';
+export * from './http/pagination';
 export * from './health/health.module';
 export * from './utils/crypto';
 export * from './utils/slugify';

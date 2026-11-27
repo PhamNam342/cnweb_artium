@@ -12,7 +12,7 @@ export const ROLES_KEY = 'roles';
 /** Bỏ qua JwtAuthGuard (route công khai). Nếu có token hợp lệ vẫn gắn request.user. */
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
-/** Yêu cầu user có ít nhất một trong các role. */
+/** Chỉ cho phép user có vai trò thuộc danh sách. */
 export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
 
 export const CurrentUser = createParamDecorator(

@@ -2,6 +2,7 @@ import {
   EmailVerificationRequestedPayload,
   EventEnvelope,
   IdentityEvents,
+  PasswordChangeCodeRequestedPayload,
   PasswordResetRequestedPayload,
 } from '@app/contracts';
 import { InboxService } from '@app/database';
@@ -14,7 +15,11 @@ import {
 } from '@nestjs/common';
 import { MAIL_CONFIG } from './mail.config';
 import type { MailConfig } from './mail.config';
-import { passwordResetEmail, verificationEmail } from './mail-templates';
+import {
+  passwordChangeCodeEmail,
+  passwordResetEmail,
+  verificationEmail,
+} from './mail-templates';
 import { MailMessage, MailService } from './mail.service';
 
 export const MAILER_QUEUE = 'identity.mailer';
@@ -48,6 +53,7 @@ export class IdentityMailerConsumer implements OnApplicationBootstrap {
       routingKeys: [
         IdentityEvents.EmailVerificationRequested,
         IdentityEvents.PasswordResetRequested,
+        IdentityEvents.PasswordChangeCodeRequested,
       ],
       prefetch: 5,
       handler: async (envelope) => {
@@ -85,6 +91,10 @@ export class IdentityMailerConsumer implements OnApplicationBootstrap {
       case IdentityEvents.PasswordResetRequested:
         return passwordResetEmail(
           envelope.payload as PasswordResetRequestedPayload,
+        );
+      case IdentityEvents.PasswordChangeCodeRequested:
+        return passwordChangeCodeEmail(
+          envelope.payload as PasswordChangeCodeRequestedPayload,
         );
       default:
         return null;

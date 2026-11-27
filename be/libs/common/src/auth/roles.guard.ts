@@ -22,7 +22,7 @@ export class RolesGuard implements CanActivate {
     const user = ctx
       .switchToHttp()
       .getRequest<Request & { user?: AuthUser }>().user;
-    if (user && required.some((r) => user.roles.includes(r))) return true;
+    if (user && required.includes(user.role)) return true;
     throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
   }
 }

@@ -1,6 +1,7 @@
 import {
   EmailVerificationRequestedPayload,
   IdentityEvents,
+  PasswordChangeCodeRequestedPayload,
   PasswordResetRequestedPayload,
   SellerProfileUpsertedPayload,
   UserRegisteredPayload,
@@ -40,7 +41,7 @@ export const identityEvents = {
       email: user.email,
       fullName: user.fullName,
       avatarUrl: user.avatarUrl,
-      roles: user.roles,
+      role: user.role,
       status: user.status,
     },
   }),
@@ -75,6 +76,23 @@ export const identityEvents = {
       email: user.email,
       fullName: user.fullName,
       resetUrl,
+      expiresAt: expiresAt.toISOString(),
+    },
+  }),
+
+  passwordChangeCodeRequested: (
+    user: User,
+    code: string,
+    expiresAt: Date,
+  ): DomainEvent<PasswordChangeCodeRequestedPayload> => ({
+    aggregateType: 'User',
+    aggregateId: user.id,
+    type: IdentityEvents.PasswordChangeCodeRequested,
+    payload: {
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      code,
       expiresAt: expiresAt.toISOString(),
     },
   }),

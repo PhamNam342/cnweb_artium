@@ -74,6 +74,15 @@ export class ResetPasswordDto {
   newPassword!: string;
 }
 
+export class ChangePasswordWithCodeDto {
+  /** Mã 6 chữ số trong email */
+  @Matches(/^\d{6}$/, { message: 'Mã gồm 6 chữ số' })
+  code!: string;
+
+  @Matches(PASSWORD_RULE, { message: PASSWORD_MESSAGE })
+  newPassword!: string;
+}
+
 export class ChangePasswordDto {
   /** Bỏ trống nếu tài khoản chưa có mật khẩu (đăng ký bằng Google) — khi đó là đặt mật khẩu lần đầu. */
   @IsOptional()

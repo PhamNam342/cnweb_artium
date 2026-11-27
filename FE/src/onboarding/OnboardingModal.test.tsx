@@ -11,7 +11,7 @@ const user: User = {
   fullName: 'Nguyễn Văn An',
   avatarUrl: null,
   phone: null,
-  roles: ['collector'],
+  role: 'collector',
   status: 'active',
   emailVerified: false,
   city: null,

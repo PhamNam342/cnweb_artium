@@ -18,7 +18,7 @@ import schema_spec as spec  # noqa: E402
 
 OUT_DIR = HERE.parent
 STD_TYPES = re.compile(
-    r"^(uuid|text|int|smallint|bigint|boolean|jsonb|timestamptz|text\[\]|(var)?char\(\d+\))$"
+    r"^(uuid|text|int|smallint|bigint|boolean|jsonb|timestamptz|text\[\]|(var)?char\(\d+\)|numeric\(\d+,\d+\))$"
 )
 
 
