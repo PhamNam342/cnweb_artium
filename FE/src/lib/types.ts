@@ -1,3 +1,5 @@
+export type UserRole = 'collector' | 'seller' | 'admin';
+
 /** Khớp với UserResponse của identity service. */
 export interface User {
   id: string;
@@ -5,7 +7,8 @@ export interface User {
   fullName: string;
   avatarUrl: string | null;
   phone: string | null;
-  roles: Array<'collector' | 'seller' | 'admin'>;
+  /** Mỗi tài khoản một vai trò */
+  role: UserRole;
   status: string;
   emailVerified: boolean;
   city: string | null;

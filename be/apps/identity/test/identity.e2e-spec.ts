@@ -21,7 +21,7 @@ interface AuthBody {
   user: {
     id: string;
     email: string;
-    roles: string[];
+    role: string;
     emailVerified: boolean;
     hasPassword: boolean;
     sellerSlug: string | null;
@@ -84,7 +84,7 @@ describe('Identity (e2e)', () => {
       .expect(201);
     const body = res.body as AuthBody;
     expect(body.user.email).toBe(email); // đã lowercase
-    expect(body.user.roles).toEqual(['collector']);
+    expect(body.user.role).toBe('collector');
     expect(body.user.emailVerified).toBe(false);
     expect(res.get('Set-Cookie')?.[0]).toMatch(/HttpOnly/);
     userId = body.user.id;
@@ -245,7 +245,7 @@ describe('Identity (e2e)', () => {
       .set('Cookie', cookie)
       .expect(200);
     const body = refreshed.body as AuthBody;
-    expect(body.user.roles).toEqual(['collector', 'seller']);
+    expect(body.user.role).toBe('seller');
     expect(body.user.sellerSlug).toBe(slug);
 
     await request(app.getHttpServer())
@@ -296,14 +296,14 @@ describe('Identity (e2e)', () => {
           onboardingCompleted: boolean;
           fullName: string;
           interests: string[];
-          roles: string[];
+          role: string;
         };
       };
       expect(body.user).toMatchObject({
         onboardingCompleted: true,
         fullName: 'Trần Sưu Tầm',
         interests: ['son-dau', 'nhiep-anh'],
-        roles: ['collector'],
+        role: 'collector',
       });
 
       await request(app.getHttpServer())
@@ -356,9 +356,9 @@ describe('Identity (e2e)', () => {
         .expect(200);
       const body = res.body as {
         accessToken: string;
-        user: { roles: string[]; sellerSlug: string };
+        user: { role: string; sellerSlug: string };
       };
-      expect(body.user.roles).toEqual(['collector', 'seller']);
+      expect(body.user.role).toBe('seller');
       expect(body.user.sellerSlug).toBe(suggested.slug);
 
       const me = await request(app.getHttpServer())

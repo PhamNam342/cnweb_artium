@@ -12,6 +12,8 @@ import { User } from '../../users/entities/user.entity';
 export enum UserTokenType {
   EmailVerification = 'email_verification',
   PasswordReset = 'password_reset',
+  /** Mã 6 số đổi mật khẩu khi đang đăng nhập */
+  PasswordChange = 'password_change',
 }
 
 @Entity('user_tokens')
@@ -42,6 +44,10 @@ export class UserToken {
 
   @Column({ name: 'used_at', type: 'timestamptz', nullable: true })
   usedAt!: Date | null;
+
+  /** Số lần nhập sai (chỉ dùng cho mã ngắn: quá giới hạn thì mã bị hủy) */
+  @Column({ type: 'smallint', default: 0 })
+  attempts!: number;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

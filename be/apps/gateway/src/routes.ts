@@ -20,7 +20,7 @@ export const ROUTES: ServiceRoute[] = [
     service: 'catalog',
     envKey: 'CATALOG_URL',
     defaultUrl: 'http://localhost:3002',
-    prefixes: ['/api/artworks', '/api/folders', '/api/tags'],
+    prefixes: ['/api/artworks', '/api/folders', '/api/tags', '/api/uploads'],
   },
   {
     service: 'commerce',

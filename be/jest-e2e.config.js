@@ -7,6 +7,6 @@ module.exports = {
   testEnvironment: 'node',
   testTimeout: 30000,
   moduleNameMapper: {
-    '^@app/(common|database|messaging|contracts)(|/.*)$': '<rootDir>/libs/$1/src$2',
+    '^@app/(common|database|messaging|contracts|storage)(|/.*)$': '<rootDir>/libs/$1/src$2',
   },
 };

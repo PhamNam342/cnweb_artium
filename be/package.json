@@ -12,6 +12,8 @@
     "dev": "node scripts/dev-all.js",
     "start:prod": "node scripts/start-prod.js",
     "migrate": "node scripts/migrate.js",
+    "seed": "ts-node --transpile-only scripts/seed.ts",
+    "db:inspect": "ts-node --transpile-only scripts/db-inspect.ts",
     "lint": "eslint \"{apps,libs}/**/*.ts\"",
     "lint:fix": "eslint \"{apps,libs}/**/*.ts\" --fix",
     "format": "prettier --write \"{apps,libs}/**/*.ts\"",
@@ -35,6 +37,7 @@
     "argon2": "^0.45.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "google-auth-library": "^11.3.4",
     "http-proxy-middleware": "^4.2.2",
@@ -94,7 +97,7 @@
       "<rootDir>/libs/"
     ],
     "moduleNameMapper": {
-      "^@app/(common|database|messaging|contracts)(|/.*)$": "<rootDir>/libs/$1/src$2"
+      "^@app/(common|database|messaging|contracts|storage)(|/.*)$": "<rootDir>/libs/$1/src$2"
     }
   },
   "overrides": {

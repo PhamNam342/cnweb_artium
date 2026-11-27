@@ -68,13 +68,15 @@ async function parseError(res: Response): Promise<ApiError> {
   let message = 'Đã có lỗi xảy ra, vui lòng thử lại.';
   let details: string[] = [];
   try {
-    const data = (await res.json()) as { message?: string | string[] };
+    const data = (await res.json()) as { message?: string | string[]; errors?: unknown };
     if (Array.isArray(data.message)) {
       details = data.message;
       message = data.message[0] ?? message;
     } else if (typeof data.message === 'string') {
       message = data.message;
     }
+    // 422 của catalog: { message, errors: [...] } — danh sách điều kiện còn thiếu
+    if (Array.isArray(data.errors)) details = data.errors.filter((x) => typeof x === 'string');
   } catch {
     // body không phải JSON
   }

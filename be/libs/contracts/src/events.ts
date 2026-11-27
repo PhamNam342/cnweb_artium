@@ -18,6 +18,8 @@ export const IdentityEvents = {
   UserUpdated: 'identity.user.updated',
   EmailVerificationRequested: 'identity.email_verification.requested',
   PasswordResetRequested: 'identity.password_reset.requested',
+  /** Mã 6 số để đổi mật khẩu khi đang đăng nhập (gửi qua email). */
+  PasswordChangeCodeRequested: 'identity.password_change.requested',
   SellerProfileUpserted: 'identity.seller_profile.upserted',
 } as const;
 
@@ -34,7 +36,7 @@ export interface UserUpdatedPayload {
   email: string;
   fullName: string;
   avatarUrl: string | null;
-  roles: string[];
+  role: string;
   status: string;
 }
 
@@ -54,6 +56,15 @@ export interface PasswordResetRequestedPayload {
   expiresAt: string;
 }
 
+export interface PasswordChangeCodeRequestedPayload {
+  userId: string;
+  email: string;
+  fullName: string;
+  /** Mã 6 chữ số (chỉ để gửi mail; DB chỉ lưu bản băm) */
+  code: string;
+  expiresAt: string;
+}
+
 export interface SellerProfileUpsertedPayload {
   sellerId: string;
   profileId: string;
@@ -61,4 +72,24 @@ export interface SellerProfileUpsertedPayload {
   displayName: string;
   avatarUrl: string | null;
   isVerified: boolean;
+}
+
+export const CatalogEvents = {
+  ArtworkPublished: 'catalog.artwork.published',
+  ArtworkUpdated: 'catalog.artwork.updated',
+  /** Gỡ khỏi công khai: unpublish, lưu trữ hoặc xóa (xem field reason). */
+  ArtworkArchived: 'catalog.artwork.archived',
+} as const;
+
+/** Snapshot tác phẩm gửi kèm event catalog — đủ để service khác hiển thị mà không gọi lại. */
+export interface ArtworkSnapshotPayload {
+  artworkId: string;
+  sellerId: string;
+  title: string;
+  coverImageUrl: string | null;
+  listingType: string;
+  status: string;
+  price: number | null;
+  quantityAvailable: number;
+  reason?: 'unpublished' | 'archived' | 'deleted';
 }

@@ -37,7 +37,7 @@ export class TokenService {
     const payload: AccessTokenPayload = {
       sub: user.id,
       email: user.email,
-      roles: user.roles,
+      role: user.role,
       ev: user.emailVerifiedAt !== null,
     };
     return this.jwt.signAsync(payload, {

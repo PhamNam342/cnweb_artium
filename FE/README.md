@@ -15,13 +15,28 @@ refresh token hoạt động giống production (nginx cũng proxy `/api` tới 
 
 ```
 src/
+├── artworks/      # Kho tác phẩm + wizard đăng/sửa tác phẩm (upload Cloudinary, form, tag)
 ├── auth/          # AuthProvider (phiên đăng nhập), guards, Google Sign-In
-├── components/    # AuthLayout, PasswordField, Decor (họa tiết), Avatar...
+├── components/    # AppHeader, AuthLayout, PasswordField, Decor (họa tiết), Avatar...
 ├── lib/           # api client (tự refresh khi 401), types, rule mật khẩu, slugify, danh mục
 ├── onboarding/    # Popup chọn vai trò lần đầu (nhà sưu tầm / nghệ sĩ)
 ├── pages/         # Landing, Login, Register, Quên/Đặt lại mật khẩu, Xác minh email, Home
-└── styles/        # global.css — design token theo Figma (Inter, #0F6BFF...)
+├── studio/        # Khung trang quản lý của nghệ sĩ (menu trái) + chặn tài khoản không phải seller
+└── styles/        # global.css — design token theo Figma (Inter, #0F6BFF...); studio.css
 ```
+
+## Studio nghệ sĩ (Figma: "Uploading Tweak Mobile App", "Inventory")
+
+| Đường dẫn | Trang |
+| --- | --- |
+| `/studio/artworks` | Kho tác phẩm: tab trạng thái, tìm kiếm, danh sách/lưới, thư mục, menu thao tác |
+| `/studio/artworks/new` | Đăng tác phẩm — 3 bước: Tải ảnh → Thông tin tác phẩm → Tag |
+| `/studio/artworks/:id/edit` | Sửa tác phẩm |
+
+- Ảnh upload **thẳng lên Cloudinary** ngay khi chọn (xin chữ ký ở `POST /api/uploads/artwork-images`), có tiến độ,
+  kéo thả để sắp xếp, ảnh đầu là ảnh bìa. Cần `CLOUDINARY_*` trong `be/.env`.
+- Người dùng nhập theo cm/in, kg/lbs; FE đổi sang cm/kg trước khi gửi (`src/artworks/units.ts`).
+- Chỉ tài khoản `role = seller` vào được studio.
 
 ## Luồng đăng nhập
 

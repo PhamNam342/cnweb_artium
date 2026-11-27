@@ -46,14 +46,14 @@ export class User {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone!: string | null;
 
+  /** Mỗi tài khoản đúng một vai trò: người mua (collector), nghệ sĩ / gallery (seller) hoặc admin. */
   @Column({
     type: 'enum',
     enum: UserRole,
     enumName: 'user_role',
-    array: true,
-    default: [UserRole.Collector],
+    default: UserRole.Collector,
   })
-  roles!: UserRole[];
+  role!: UserRole;
 
   @Column({
     type: 'enum',

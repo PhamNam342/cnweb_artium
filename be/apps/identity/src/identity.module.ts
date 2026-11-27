@@ -1,3 +1,4 @@
+import { StorageModule, storageEnvSchema } from '@app/storage';
 import {
   CommonAuthModule,
   HealthModule,
@@ -22,7 +23,9 @@ import { UsersModule } from './users/users.module';
     ServiceConfigModule.forRoot('identity', 3001, {
       ...identityEnvSchema,
       ...mailEnvSchema,
+      ...storageEnvSchema,
     }),
+    StorageModule,
     IdentityConfigModule,
     DatabaseModule.forRoot({
       migrations: [join(__dirname, 'database/migrations/*.{ts,js}')],

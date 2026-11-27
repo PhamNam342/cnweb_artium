@@ -2,7 +2,7 @@
 
 > **File này được SINH TỰ ĐỘNG** từ `docs/database/tools/schema_spec.py` cùng với `artium_database_erd.drawio`. Đừng sửa tay — sửa spec rồi chạy `python3 docs/database/tools/generate.py`.
 
-Tổng cộng **5 service có database**, **55 bảng nghiệp vụ** (+ `outbox`, `inbox` trong mỗi database).
+Tổng cộng **5 service có database**, **56 bảng nghiệp vụ** (+ `outbox`, `inbox` trong mỗi database).
 
 ## 1. Quy ước
 
@@ -42,7 +42,7 @@ Tổng cộng **5 service có database**, **55 bảng nghiệp vụ** (+ `outbox
 | --- | --- | --- | --- |
 | gateway | 3000 | — | — (định tuyến HTTP, không có DB) |
 | identity | 3001 | `identity_db` | `users`, `oauth_accounts`, `refresh_tokens`, `user_tokens`, `seller_profiles`, `seller_websites` |
-| catalog | 3002 | `catalog_db` | `artworks`, `artwork_folders`, `tags`, `artwork_tags`, `artwork_reservations`, `seller_summaries` |
+| catalog | 3002 | `catalog_db` | `artworks`, `artwork_images`, `artwork_folders`, `tags`, `artwork_tags`, `artwork_reservations`, `seller_summaries` |
 | commerce | 3003 | `commerce_db` | `carts`, `cart_items`, `promotions`, `promotion_redemptions`, `orders`, `seller_orders`, `order_items`, `payments`, `payment_webhook_events`, `refunds`, `seller_payout_accounts`, `payouts`, `payout_items`, `invoices`, `invoice_items` |
 | social | 3004 | `social_db` | `follows`, `reactions`, `comments`, `moments`, `moment_artworks`, `moodboards`, `moodboard_artworks`, `moodboard_collaborators`, `reviews`, `events`, `event_registrations`, `event_artworks`, `conversations`, `conversation_participants`, `messages`, `notifications`, `email_deliveries`, `notification_preferences`, `user_summaries` |
 | crm | 3005 | `crm_db` | `contacts`, `segments`, `segment_members`, `email_campaigns`, `campaign_segments`, `campaign_recipients`, `private_views`, `private_view_artworks`, `private_view_invitees` |
@@ -52,7 +52,7 @@ Tổng cộng **5 service có database**, **55 bảng nghiệp vụ** (+ `outbox
 | Prefix | Service |
 | --- | --- |
 | `/api/auth, /api/users, /api/sellers` | identity :3001 |
-| `/api/artworks, /api/folders, /api/tags` | catalog :3002 |
+| `/api/artworks, /api/folders, /api/tags, /api/uploads` | catalog :3002 |
 | `/api/cart, /api/orders, /api/payments, /api/promotions, /api/invoices, /api/payouts, /api/webhooks/payos` | commerce :3003 |
 | `/api/follows, /api/reactions, /api/comments, /api/moments, /api/moodboards, /api/reviews, /api/events, /api/conversations, /api/notifications` | social :3004 |
 | `/api/crm` | crm :3005 |
@@ -73,7 +73,7 @@ Tài khoản trung tâm. Email lưu dạng lowercase.
 | `full_name` | `varchar(255)` | NOT NULL |  |
 | `avatar_url` | `varchar(1024)` | NULL |  |
 | `phone` | `varchar(20)` | NULL |  |
-| `roles` | `user_role[]` | NOT NULL, DEFAULT `'{collector}'` | collector \| seller \| admin |
+| `role` | `user_role` | NOT NULL, DEFAULT `'collector'` | mỗi tài khoản 1 vai trò: collector \| seller \| admin |
 | `status` | `user_status` | NOT NULL, DEFAULT `'active'` | active \| suspended |
 | `email_verified_at` | `timestamptz` | NULL | NULL = chưa xác minh |
 | `city` | `varchar(100)` | NULL | tỉnh/thành, nhập khi onboarding |
@@ -125,16 +125,17 @@ Refresh token có xoay vòng (rotation). Chỉ lưu SHA-256 của token. Dùng l
 
 ### `user_tokens`
 
-Token một lần: xác minh email, đặt lại mật khẩu. Chỉ lưu hash.
+Token một lần: xác minh email, đặt lại mật khẩu (link), mã 6 số đổi mật khẩu. Chỉ lưu hash.
 
 | Cột | Kiểu | Ràng buộc | Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `uuid` | PK, DEFAULT `gen_random_uuid()` |  |
 | `user_id` | `uuid` | FK → `users.id` (CASCADE), NOT NULL |  |
-| `type` | `user_token_type` | NOT NULL | email_verification \| password_reset |
+| `type` | `user_token_type` | NOT NULL | email_verification \| password_reset \| password_change (mã 6 số qua email) |
 | `token_hash` | `char(64)` | UNIQUE, NOT NULL |  |
 | `expires_at` | `timestamptz` | NOT NULL |  |
 | `used_at` | `timestamptz` | NULL |  |
+| `attempts` | `smallint` | NOT NULL, DEFAULT `0` | số lần nhập sai mã; quá 5 lần thì mã bị hủy |
 | `created_at` | `timestamptz` | NOT NULL, DEFAULT `now()` |  |
 
 - **Index:** `(user_id, type)`
@@ -188,24 +189,33 @@ Tác phẩm, thư mục, tag, giữ hàng (reservation) khi checkout.
 
 ### `artworks`
 
-Tác phẩm/listing. Tiền là VND kiểu bigint (đồng). like_count/comment_count là projection cập nhật từ event của social.
+Tác phẩm/listing. Tiền là VND kiểu bigint (đồng). Kích thước lưu chuẩn theo cm/kg, kèm đơn vị người dùng chọn để hiển thị lại. like_count/comment_count là projection từ social.
 
 | Cột | Kiểu | Ràng buộc | Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `uuid` | PK, DEFAULT `gen_random_uuid()` |  |
 | `seller_id` | `uuid` | REF → `identity.users`, NOT NULL |  |
 | `folder_id` | `uuid` | FK → `artwork_folders.id` (SET NULL), NULL |  |
-| `title` | `varchar(255)` | NOT NULL |  |
-| `description` | `text` | NULL |  |
-| `creator_name` | `varchar(255)` | NULL | nghệ sĩ (có thể khác seller nếu là gallery) |
+| `title` | `varchar(100)` | NOT NULL |  |
+| `description` | `varchar(350)` | NULL |  |
+| `creator_name` | `varchar(100)` | NULL | nghệ sĩ (có thể khác seller nếu là gallery) |
 | `creation_year` | `smallint` | NULL |  |
-| `medium` | `varchar(255)` | NULL | chất liệu |
-| `dimensions` | `jsonb` | NULL | {width, height, depth, unit} |
-| `weight` | `jsonb` | NULL | {value, unit} |
-| `images` | `jsonb` | NOT NULL, DEFAULT `'[]'` | [{url, thumbnailUrl, width, height, isCover}] |
-| `price` | `bigint` | NULL | VND; NULL = 'liên hệ' |
+| `edition` | `varchar(24)` | NULL | VD: 12/100, Limited Edition |
+| `medium` | `varchar(80)` | NULL | chất liệu, VD: Sơn dầu trên canvas |
+| `width_cm` | `numeric(8,2)` | NULL |  |
+| `height_cm` | `numeric(8,2)` | NULL |  |
+| `depth_cm` | `numeric(8,2)` | NULL |  |
+| `dimension_unit` | `dimension_unit` | NOT NULL, DEFAULT `'cm'` | cm \| in — đơn vị hiển thị |
+| `weight_kg` | `numeric(8,2)` | NULL |  |
+| `weight_unit` | `weight_unit` | NOT NULL, DEFAULT `'kg'` | kg \| lb — đơn vị hiển thị |
+| `is_framed` | `boolean` | NOT NULL, DEFAULT `false` | có khung trang trí |
+| `listing_type` | `listing_type` | NOT NULL, DEFAULT `'for_sale'` | for_sale \| inquire \| display_only \| sold (bán ngoài nền tảng) |
+| `price` | `bigint` | NULL | VND; bắt buộc khi đăng với for_sale |
 | `quantity_total` | `int` | NOT NULL, DEFAULT `1` |  |
 | `quantity_available` | `int` | NOT NULL, DEFAULT `1` | CHECK 0 <= available <= total |
+| `allow_offers` | `boolean` | NOT NULL, DEFAULT `false` | chưa dùng — cần luồng offer ở commerce |
+| `shipping` | `jsonb` | NULL | {method: box\|crate\|tube, widthCm, heightCm, depthCm, weightKg} |
+| `sale_record` | `jsonb` | NULL | khi listing_type = sold: {collectorName, showOnProfile, soldPrice, soldAt} |
 | `status` | `artwork_status` | NOT NULL, DEFAULT `'draft'` | draft \| published \| sold_out \| archived |
 | `published_at` | `timestamptz` | NULL |  |
 | `view_count` | `int` | NOT NULL, DEFAULT `0` |  |
@@ -217,6 +227,26 @@ Tác phẩm/listing. Tiền là VND kiểu bigint (đồng). like_count/comment_
 
 - **Index:** `(seller_id, status, created_at)`
 - **Index:** `(status, published_at)`
+- **Index:** `(folder_id)`
+
+### `artwork_images`
+
+Ảnh tác phẩm lưu trên Cloudinary. position 0 là ảnh bìa. URL ảnh thu nhỏ sinh từ public_id (Cloudinary transform), không lưu.
+
+| Cột | Kiểu | Ràng buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK, DEFAULT `gen_random_uuid()` |  |
+| `artwork_id` | `uuid` | FK → `artworks.id` (CASCADE), NOT NULL |  |
+| `public_id` | `varchar(255)` | UNIQUE, NOT NULL | artium/artworks/<sellerId>/<id> |
+| `version` | `int` | NOT NULL | version Cloudinary, dùng trong URL để tránh cache cũ |
+| `format` | `varchar(10)` | NOT NULL |  |
+| `width` | `int` | NOT NULL |  |
+| `height` | `int` | NOT NULL |  |
+| `bytes` | `int` | NOT NULL |  |
+| `position` | `smallint` | NOT NULL, DEFAULT `0` |  |
+| `created_at` | `timestamptz` | NOT NULL, DEFAULT `now()` |  |
+
+- **Index:** `(artwork_id, position)`
 
 ### `artwork_folders`
 
@@ -237,17 +267,19 @@ Cây thư mục để seller sắp xếp tác phẩm.
 
 ### `tags`
 
-Tag hệ thống (seller_id NULL) hoặc tag riêng của seller.
+Tag hệ thống (seller_id NULL, seed sẵn) hoặc tag riêng của seller, chia theo nhóm.
 
 | Cột | Kiểu | Ràng buộc | Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `uuid` | PK, DEFAULT `gen_random_uuid()` |  |
 | `seller_id` | `uuid` | REF → `identity.users`, NULL | NULL = tag hệ thống |
+| `category` | `tag_category` | NOT NULL, DEFAULT `'other'` | medium \| style \| subject \| other |
 | `name` | `varchar(64)` | NOT NULL |  |
 | `slug` | `varchar(80)` | NOT NULL |  |
 | `created_at` | `timestamptz` | NOT NULL, DEFAULT `now()` |  |
 
 - **Unique:** `(seller_id, slug) NULLS NOT DISTINCT`
+- **Index:** `(category)`
 
 ### `artwork_tags`
 
@@ -1154,11 +1186,13 @@ Exchange `artium.events` (topic) trên RabbitMQ. Service phát ghi vào `outbox`
 | `contact_status` | active \| unsubscribed \| bounced |
 | `conversation_type` | direct \| group \| inquiry |
 | `delivery_status` | pending \| sent \| failed |
+| `dimension_unit` | cm \| in |
 | `discount_type` | percent \| fixed |
 | `event_status` | draft \| published \| cancelled \| completed |
 | `event_type` | exhibition \| opening \| workshop \| talk \| online |
 | `event_visibility` | public \| invite_only |
 | `invoice_status` | draft \| sent \| paid \| cancelled |
+| `listing_type` | for_sale \| inquire \| display_only \| sold |
 | `media_type` | image \| video |
 | `message_type` | text \| image \| file \| artwork_share \| system |
 | `oauth_provider` | google |
@@ -1179,11 +1213,13 @@ Exchange `artium.events` (topic) trên RabbitMQ. Service phát ghi vào `outbox`
 | `seller_profile_type` | individual \| gallery \| institution |
 | `seller_verification_status` | unverified \| pending \| verified \| rejected |
 | `social_target_type` | artwork \| moment \| moodboard \| comment \| review |
-| `user_role` | collector \| seller \| admin |
+| `tag_category` | medium \| style \| subject \| other |
+| `user_role` | mỗi tài khoản 1 vai trò |
 | `user_status` | active \| suspended |
-| `user_token_type` | email_verification \| password_reset |
+| `user_token_type` | email_verification \| password_reset \| password_change |
 | `visibility` | private \| public |
 | `webhook_status` | received \| processed \| ignored \| failed |
+| `weight_unit` | kg \| lb |
 
 ## 12. Đề xuất bổ sung từ thiết kế Figma (CHƯA triển khai)
 
@@ -1192,7 +1228,6 @@ Các điểm thiết kế cần nhưng schema hiện tại chưa có. Khi làm t
 | Bổ sung | Service | Lý do (màn hình Figma) |
 | --- | --- | --- |
 | `identity.users.lat/lng (numeric) hoặc PostGIS` | identity | Màn 'Who's Near You', 'Discover - Nearby' cần tọa độ để lọc theo khoảng cách (hiện chỉ có users.city và seller_profiles.location dạng chuỗi). |
-| `catalog.artworks.listing_type enum(for_sale, inquire, display_only)` | catalog | Màn Upload Edit có 4 trạng thái: Listing for sale / Inquire to purchase / Display only / Sold. 'Sold' suy ra từ status = sold_out. |
 | `identity.seller_profiles.about jsonb {affiliations[], seen_at[], currently, invited_by}` | identity | Khối About Me: Affiliations, You might have seen me at, Currently, Invited by. |
 | `catalog.artwork_certificates(id, artwork_id, certificate_no, issued_at, issuer, file_url, verify_code)` | catalog | Trang 'Verified Certificates' — chứng nhận tác phẩm thật, có mã tra cứu công khai. |
 | `social.articles(id, author_id, type, title, slug, cover_url, body, published_at, read_minutes)` | social | Khối 'Weekly Editorial For You' (Blog / Spotlight) trên trang chủ app. |

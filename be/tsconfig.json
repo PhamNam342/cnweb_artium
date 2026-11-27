@@ -28,6 +28,8 @@
       "@app/database/*": ["libs/database/src/*"],
       "@app/messaging": ["libs/messaging/src"],
       "@app/messaging/*": ["libs/messaging/src/*"],
+      "@app/storage": ["libs/storage/src"],
+      "@app/storage/*": ["libs/storage/src/*"],
       "@app/contracts": ["libs/contracts/src"],
       "@app/contracts/*": ["libs/contracts/src/*"]
     }

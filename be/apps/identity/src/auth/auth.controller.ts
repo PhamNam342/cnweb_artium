@@ -19,6 +19,7 @@ import { AuthSession, AuthService } from './auth.service';
 import { AuthResponse, MessageResponse } from './dto/auth-response';
 import {
   ChangePasswordDto,
+  ChangePasswordWithCodeDto,
   ForgotPasswordDto,
   GoogleLoginDto,
   LoginDto,
@@ -180,6 +181,43 @@ export class AuthController {
   ): Promise<MessageResponse> {
     await this.auth.changePassword(user.id, dto);
     return { message: 'Đổi mật khẩu thành công' };
+  }
+
+  /** Gửi mã 6 số qua email để đổi mật khẩu (tối đa 1 mã / phút). */
+  @ApiBearerAuth()
+  @Throttle(STRICT)
+  @HttpCode(HttpStatus.OK)
+  @Post('password/change-code')
+  async requestPasswordChangeCode(
+    @CurrentUser() user: AuthUser,
+  ): Promise<{ message: string; sentTo: string; expiresAt: Date }> {
+    const r = await this.auth.requestPasswordChangeCode(user.id);
+    return { message: `Đã gửi mã tới ${r.sentTo}`, ...r };
+  }
+
+  /**
+   * Đổi mật khẩu bằng mã email. Các thiết bị khác bị đăng xuất; thiết bị hiện tại
+   * nhận phiên mới (access token trong body, refresh token trong cookie).
+   */
+  @ApiBearerAuth()
+  @Throttle(STRICT)
+  @HttpCode(HttpStatus.OK)
+  @Post('password/change-with-code')
+  async changePasswordWithCode(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordWithCodeDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    return this.respond(
+      res,
+      await this.auth.changePasswordWithCode(
+        user.id,
+        dto.code,
+        dto.newPassword,
+        meta(req),
+      ),
+    );
   }
 
   private respond(res: Response, session: AuthSession): AuthResponse {

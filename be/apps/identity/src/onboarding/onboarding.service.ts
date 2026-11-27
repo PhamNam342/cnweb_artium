@@ -66,7 +66,7 @@ export class OnboardingService {
           );
         }
       }
-      // createInTransaction có thể đã thêm role seller => đọc lại để event có roles mới nhất
+      // createInTransaction có thể đã chuyển role sang seller => đọc lại để event có role mới nhất
       const fresh = await repo.findOneByOrFail({ id: userId });
       await this.outbox.enqueue(manager, identityEvents.userUpdated(fresh));
     });

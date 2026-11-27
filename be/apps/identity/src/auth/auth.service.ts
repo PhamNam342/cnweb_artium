@@ -8,6 +8,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { randomInt, timingSafeEqual } from 'node:crypto';
 import { DataSource, EntityManager, IsNull, MoreThan } from 'typeorm';
 import { IDENTITY_CONFIG } from '../config/identity-config.provider';
 import type { IdentityConfig } from '../config/identity-env';
@@ -38,6 +39,18 @@ export interface AuthSession {
 }
 
 const INVALID_CREDENTIALS = 'Email hoặc mật khẩu không đúng';
+
+/** Nhập sai mã đổi mật khẩu quá số lần này thì mã bị hủy, phải xin mã mới. */
+export const PASSWORD_CODE_MAX_ATTEMPTS = 5;
+
+/** Băm mã ngắn kèm userId để cùng một mã của 2 người không trùng hash. */
+const hashCode = (userId: string, code: string) => sha256(`${userId}:${code}`);
+
+/** "lan.nguyen@artium.vn" → "la••••••@artium.vn" */
+export function maskEmail(email: string): string {
+  const [name, domain] = email.split('@');
+  return `${name.slice(0, 2)}${'•'.repeat(Math.max(2, name.length - 2))}@${domain}`;
+}
 
 @Injectable()
 export class AuthService {
@@ -319,6 +332,114 @@ export class AuthService {
     }
     const passwordHash = await this.passwords.hash(dto.newPassword);
     await this.dataSource.getRepository(User).update(userId, { passwordHash });
+  }
+
+  /**
+   * Gửi mã 6 số qua email để đổi (hoặc đặt lần đầu) mật khẩu khi đang đăng nhập.
+   * Tối đa 1 mã / phút; mã mới làm mã cũ hết hiệu lực.
+   */
+  async requestPasswordChangeCode(
+    userId: string,
+  ): Promise<{ expiresAt: Date; sentTo: string }> {
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager
+        .getRepository(User)
+        .findOneByOrFail({ id: userId });
+      this.assertActive(user);
+      await this.throttleUserToken(
+        manager,
+        user.id,
+        UserTokenType.PasswordChange,
+      );
+      const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+      const expiresAt = new Date(
+        Date.now() + this.config.passwordChangeCodeTtlMinutes * 60_000,
+      );
+      const repo = manager.getRepository(UserToken);
+      // Xóa hẳn mã cũ (không chỉ cho hết hạn): token_hash là UNIQUE mà mã chỉ có 6 số,
+      // giữ lại mã cũ thì lần sau có thể sinh trùng đúng mã đó => lỗi trùng khóa
+      await repo.delete({
+        userId: user.id,
+        type: UserTokenType.PasswordChange,
+      });
+      await repo.save({
+        userId: user.id,
+        type: UserTokenType.PasswordChange,
+        tokenHash: hashCode(user.id, code),
+        expiresAt,
+      });
+      await this.outbox.enqueue(
+        manager,
+        identityEvents.passwordChangeCodeRequested(user, code, expiresAt),
+      );
+      return { expiresAt, sentTo: maskEmail(user.email) };
+    });
+  }
+
+  /**
+   * Đổi mật khẩu bằng mã email. Thành công => đăng xuất mọi thiết bị khác và cấp phiên mới
+   * cho thiết bị hiện tại (người dùng không phải đăng nhập lại).
+   */
+  async changePasswordWithCode(
+    userId: string,
+    code: string,
+    newPassword: string,
+    meta: ClientMeta,
+  ): Promise<AuthSession> {
+    const passwordHash = await this.passwords.hash(newPassword);
+    type Outcome =
+      | { ok: true; refresh: IssuedRefreshToken }
+      | { ok: false; message: string };
+    const outcome: Outcome = await this.dataSource.transaction(
+      async (manager) => {
+        const repo = manager.getRepository(UserToken);
+        const token = await repo.findOne({
+          where: {
+            userId,
+            type: UserTokenType.PasswordChange,
+            usedAt: IsNull(),
+            expiresAt: MoreThan(new Date()),
+          },
+          order: { createdAt: 'DESC' },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!token) {
+          return {
+            ok: false,
+            message: 'Mã đã hết hạn hoặc chưa được gửi — hãy gửi mã mới',
+          };
+        }
+        const a = Buffer.from(token.tokenHash);
+        const b = Buffer.from(hashCode(userId, code));
+        if (a.length !== b.length || !timingSafeEqual(a, b)) {
+          // Lưu số lần sai (transaction vẫn commit) rồi mới báo lỗi
+          token.attempts += 1;
+          if (token.attempts >= PASSWORD_CODE_MAX_ATTEMPTS)
+            token.expiresAt = new Date();
+          await repo.save(token);
+          const left = PASSWORD_CODE_MAX_ATTEMPTS - token.attempts;
+          return {
+            ok: false,
+            message:
+              left > 0
+                ? `Mã không đúng — còn ${left} lần thử`
+                : 'Nhập sai quá nhiều lần — hãy gửi mã mới',
+          };
+        }
+        token.usedAt = new Date();
+        await repo.save(token);
+        await manager.getRepository(User).update(userId, { passwordHash });
+        await this.tokens.revokeAllForUser(userId, manager);
+        const refresh = await this.tokens.issueRefreshToken(
+          manager,
+          userId,
+          meta,
+        );
+        return { ok: true, refresh };
+      },
+    );
+    if (!outcome.ok) throw new BadRequestException(outcome.message);
+    return this.buildSession(userId, outcome.refresh);
   }
 
   // ------------------------------------------------------------------ helpers

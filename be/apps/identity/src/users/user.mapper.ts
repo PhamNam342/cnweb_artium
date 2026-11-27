@@ -8,7 +8,7 @@ export class UserResponse {
   avatarUrl!: string | null;
   phone!: string | null;
   @ApiProperty({ enum: ['collector', 'seller', 'admin'], isArray: true })
-  roles!: string[];
+  role!: string;
   status!: string;
   emailVerified!: boolean;
   city!: string | null;
@@ -36,7 +36,7 @@ export function toUserResponse(user: User): UserResponse {
     fullName: user.fullName,
     avatarUrl: user.avatarUrl,
     phone: user.phone,
-    roles: user.roles,
+    role: user.role,
     status: user.status,
     emailVerified: user.emailVerifiedAt !== null,
     city: user.city,
