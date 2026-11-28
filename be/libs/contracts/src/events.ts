@@ -93,3 +93,21 @@ export interface ArtworkSnapshotPayload {
   quantityAvailable: number;
   reason?: 'unpublished' | 'archived' | 'deleted';
 }
+
+export const SocialEvents = {
+  /** Số like của một đối tượng vừa đổi (issue 01). */
+  ReactionChanged: 'social.reaction.changed',
+  /** Số bình luận của một đối tượng vừa đổi (issue 02). */
+  CommentChanged: 'social.comment.changed',
+} as const;
+
+/**
+ * Mang SỐ ĐẾM MỚI NHẤT (không phải +1 / -1): consumer nhận trùng hoặc sai thứ tự vẫn ra đúng.
+ * Catalog dùng để cập nhật artworks.like_count / comment_count.
+ */
+export interface SocialCountChangedPayload {
+  targetType: 'artwork' | 'moment' | 'comment' | 'moodboard' | 'review';
+  targetId: string;
+  targetOwnerId: string;
+  count: number;
+}

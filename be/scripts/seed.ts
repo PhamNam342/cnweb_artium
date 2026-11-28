@@ -1,5 +1,5 @@
 /**
- * Đổ dữ liệu mẫu cho môi trường dev (identity_db + catalog_db).
+ * Đổ dữ liệu mẫu cho môi trường dev (identity_db + catalog_db), rồi đồng bộ projection sang social_db.
  *   npm run seed
  * Chạy lại bao nhiêu lần cũng được: dữ liệu mẫu cũ (theo email / id cố định) bị xóa rồi tạo lại.
  * Lưu ý: xóa TOÀN BỘ tác phẩm / thư mục / tag riêng của các tài khoản nghệ sĩ mẫu (kể cả thứ tạo tay khi
@@ -12,6 +12,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { config } from 'dotenv';
 import { join } from 'node:path';
 import { DataSource, QueryRunner } from 'typeorm';
+import { syncSocialProjections } from './social-sync';
 
 config({ path: join(__dirname, '..', '.env'), quiet: true });
 
@@ -635,6 +636,33 @@ async function seedCatalog(
   return { withImages, published, drafts };
 }
 
+/** Social có thể chưa được migrate (DB khác / chưa chạy) — không làm hỏng cả seed. */
+async function syncSocial(
+  identity: DataSource,
+  catalog: DataSource,
+): Promise<void> {
+  const url = process.env.SOCIAL_DATABASE_URL;
+  if (!url) {
+    console.log('  ⚠ Bỏ qua: chưa có SOCIAL_DATABASE_URL trong be/.env');
+    return;
+  }
+  const socialDs = await new DataSource({ type: 'postgres', url }).initialize();
+  const social = socialDs.createQueryRunner();
+  try {
+    const s = await syncSocialProjections(identity, catalog, social);
+    console.log(
+      `  ${s.users} người dùng, ${s.artworks} tác phẩm (${s.publicArtworks} công khai)`,
+    );
+  } catch (e) {
+    console.log(
+      `  ⚠ Không đồng bộ được social (đã chạy "npm run migrate" chưa?): ${e instanceof Error ? e.message : e}`,
+    );
+  } finally {
+    await social.release();
+    await socialDs.destroy();
+  }
+}
+
 async function main(): Promise<void> {
   const identityDs = await new DataSource({
     type: 'postgres',
@@ -652,6 +680,8 @@ async function main(): Promise<void> {
     await seedIdentity(identity);
     console.log('▶ catalog: thư mục, tác phẩm, ảnh, tag');
     const r = await seedCatalog(catalog);
+    console.log('▶ social: đồng bộ user_summaries + artwork_summaries');
+    await syncSocial(identityDs, catalogDs);
 
     console.log(`\n✔ Xong. Mật khẩu mọi tài khoản: ${SEED_PASSWORD}\n`);
     console.table(

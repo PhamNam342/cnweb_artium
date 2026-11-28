@@ -13,6 +13,7 @@
     "start:prod": "node scripts/start-prod.js",
     "migrate": "node scripts/migrate.js",
     "seed": "ts-node --transpile-only scripts/seed.ts",
+    "sync:social": "ts-node --transpile-only scripts/social-sync.ts",
     "db:inspect": "ts-node --transpile-only scripts/db-inspect.ts",
     "lint": "eslint \"{apps,libs}/**/*.ts\"",
     "lint:fix": "eslint \"{apps,libs}/**/*.ts\" --fix",
