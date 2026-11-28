@@ -2,7 +2,7 @@
 
 > **File này được SINH TỰ ĐỘNG** từ `docs/database/tools/schema_spec.py` cùng với `artium_database_erd.drawio`. Đừng sửa tay — sửa spec rồi chạy `python3 docs/database/tools/generate.py`.
 
-Tổng cộng **5 service có database**, **56 bảng nghiệp vụ** (+ `outbox`, `inbox` trong mỗi database).
+Tổng cộng **5 service có database**, **57 bảng nghiệp vụ** (+ `outbox`, `inbox` trong mỗi database).
 
 ## 1. Quy ước
 
@@ -44,7 +44,7 @@ Tổng cộng **5 service có database**, **56 bảng nghiệp vụ** (+ `outbox
 | identity | 3001 | `identity_db` | `users`, `oauth_accounts`, `refresh_tokens`, `user_tokens`, `seller_profiles`, `seller_websites` |
 | catalog | 3002 | `catalog_db` | `artworks`, `artwork_images`, `artwork_folders`, `tags`, `artwork_tags`, `artwork_reservations`, `seller_summaries` |
 | commerce | 3003 | `commerce_db` | `carts`, `cart_items`, `promotions`, `promotion_redemptions`, `orders`, `seller_orders`, `order_items`, `payments`, `payment_webhook_events`, `refunds`, `seller_payout_accounts`, `payouts`, `payout_items`, `invoices`, `invoice_items` |
-| social | 3004 | `social_db` | `follows`, `reactions`, `comments`, `moments`, `moment_artworks`, `moodboards`, `moodboard_artworks`, `moodboard_collaborators`, `reviews`, `events`, `event_registrations`, `event_artworks`, `conversations`, `conversation_participants`, `messages`, `notifications`, `email_deliveries`, `notification_preferences`, `user_summaries` |
+| social | 3004 | `social_db` | `follows`, `reactions`, `comments`, `moments`, `moment_artworks`, `moodboards`, `moodboard_artworks`, `moodboard_collaborators`, `reviews`, `events`, `event_registrations`, `event_artworks`, `conversations`, `conversation_participants`, `messages`, `notifications`, `email_deliveries`, `notification_preferences`, `user_summaries`, `artwork_summaries` |
 | crm | 3005 | `crm_db` | `contacts`, `segments`, `segment_members`, `email_campaigns`, `campaign_segments`, `campaign_recipients`, `private_views`, `private_view_artworks`, `private_view_invitees` |
 
 ### Định tuyến qua gateway
@@ -958,6 +958,21 @@ PROJECTION từ identity để hiển thị tên/avatar trong feed, chat, commen
 | `seller_slug` | `varchar(120)` | NULL |  |
 | `updated_at` | `timestamptz` | NOT NULL |  |
 
+### `artwork_summaries`
+
+PROJECTION từ catalog (catalog.artwork.*): chủ tác phẩm + có đang công khai không, để like / bình luận / gắn vào moment mà không gọi sang catalog. Gỡ / xóa: giữ dòng, is_public = false.
+
+| Cột | Kiểu | Ràng buộc | Ghi chú |
+| --- | --- | --- | --- |
+| `artwork_id` | `uuid` | PK, REF → `catalog.artworks` |  |
+| `seller_id` | `uuid` | REF → `identity.users`, NOT NULL |  |
+| `title` | `varchar(100)` | NOT NULL |  |
+| `cover_image_url` | `varchar(1024)` | NULL |  |
+| `is_public` | `boolean` | NOT NULL | status published \| sold_out |
+| `updated_at` | `timestamptz` | NOT NULL |  |
+
+- **Index:** `(seller_id) WHERE is_public`
+
 ## 8. CRM Service — `crm_db`
 
 Công cụ cho seller: danh bạ khách hàng, phân khúc, email campaign, private view.
@@ -1167,7 +1182,7 @@ Exchange `artium.events` (topic) trên RabbitMQ. Service phát ghi vào `outbox`
 | `identity.email_verification.requested` | identity | identity.mailer (gửi email xác minh qua SMTP; sau này chuyển sang social) |
 | `identity.password_reset.requested` | identity | identity.mailer (gửi email đặt lại mật khẩu qua SMTP; sau này chuyển sang social) |
 | `identity.seller_profile.upserted` | identity | catalog (seller_summaries), social (user_summaries) |
-| `catalog.artwork.published / updated / archived` | catalog | social (artwork summary), commerce (vô hiệu giỏ hàng nếu ngừng bán) |
+| `catalog.artwork.published / updated / archived` | catalog | social (artwork_summaries), commerce (vô hiệu giỏ hàng nếu ngừng bán) |
 | `catalog.reservation.failed` | catalog | commerce (hủy đơn vì hết hàng) |
 | `commerce.order.created` | commerce | catalog (tạo reservation) |
 | `commerce.order.paid` | commerce | catalog (confirm reservation), crm (cập nhật contact), social (thông báo seller + buyer) |

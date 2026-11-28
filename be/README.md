@@ -75,6 +75,7 @@ npm run dev -- identity gateway # hoặc chỉ một số app
 | `npm run migrate -- <service> generate TenMigration` | Sinh migration từ thay đổi entity |
 | `npm run db:inspect -- [service\|all] [bảng] [--summary\|--md\|--all-tables]` | Xem database thật đang có bảng nào, cột nào (kiểu, null, mặc định, PK/FK, index, enum). `--md` ghi ra `docs/database/db-actual.md` |
 | `npm run seed` | Đổ dữ liệu mẫu (tài khoản, nghệ sĩ, tác phẩm) — xem mục bên dưới |
+| `npm run sync:social` | Đồng bộ `user_summaries` / `artwork_summaries` của social từ identity + catalog (seed đã tự chạy) |
 | `npm run build` | Build cả 6 app vào `dist/apps/*` |
 | `npm test` | Unit test |
 | `npm run test:e2e` | E2E (cần Postgres đã migrate) |
@@ -99,6 +100,9 @@ Mật khẩu mọi tài khoản: **`Artium123`**.
 Có 12 tác phẩm với đủ trạng thái (đang bán, hỏi giá, chỉ trưng bày, hết hàng, nháp, lưu trữ), thư mục và tag.
 Ảnh mẫu được tải lên Cloudinary khi `be/.env` có `CLOUDINARY_*`. Chưa có khóa thì tác phẩm chỉ ở dạng nháp, không ảnh;
 điền khóa rồi chạy lại `npm run seed`.
+
+Cuối cùng seed đồng bộ người dùng và tác phẩm sang social (`user_summaries`, `artwork_summaries`), vì dữ liệu seed được
+ghi thẳng vào database nên không có event nào gửi cho social. Muốn đồng bộ lại mà không seed: `npm run sync:social`.
 
 ## API Identity
 
@@ -190,6 +194,36 @@ Catalog nhận `identity.seller_profile.upserted` (queue `catalog.identity-selle
 Cấu hình trong `be/.env` (Cloudinary Console → Dashboard → API Keys):
 `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER=artium`.
 Chưa cấu hình thì các API khác vẫn chạy, riêng xin chữ ký upload trả 503.
+
+## Social: nền tảng (projection + TargetRegistry)
+
+Social không gọi API sang identity / catalog. Nó giữ bản sao cần thiết, cập nhật qua RabbitMQ:
+
+| Bảng | Nguồn (event) | Dùng để |
+| --- | --- | --- |
+| `user_summaries` | `identity.user.registered`, `identity.user.updated`, `identity.seller_profile.upserted` | Tên, avatar, slug nghệ sĩ trong bình luận, danh sách theo dõi, moment |
+| `artwork_summaries` | `catalog.artwork.published / updated / archived` | Tác phẩm có tồn tại, của ai, đang công khai không. Gỡ / xóa: giữ dòng, `is_public = false` |
+
+Consumer nằm ở `apps/social/src/summaries/` (idempotent nhờ inbox, event đến trễ không ghi đè).
+
+`TargetRegistry` (`apps/social/src/targets/`) trả lời "đối tượng `artwork` / `comment` / `moment` có id X có tồn tại không, ai là chủ".
+Like và bình luận chỉ làm việc qua registry. Thêm một loại đối tượng mới:
+
+```ts
+@Injectable()
+export class MomentTargetResolver implements TargetResolver, OnModuleInit {
+  readonly type = SocialTargetType.Moment;
+  constructor(private readonly registry: TargetRegistry) {}
+  onModuleInit() { this.registry.register(this); }
+  async resolve(m: EntityManager, id: string, viewerId?: string) { /* { ownerId, visible } | null */ }
+  async setCount(m: EntityManager, id: string, field: 'reactions' | 'comments', count: number) { /* tùy chọn */ }
+}
+// module của bạn: imports: [TargetsModule], providers: [MomentTargetResolver]
+```
+
+- `registry.require(m, type, id, viewerId?)`: không tồn tại hoặc không hiển thị => 404; loại chưa đăng ký => 400.
+- `registry.find(...)`: như trên nhưng không kiểm tra hiển thị (bỏ like / xóa bình luận trên tác phẩm đã gỡ).
+- Event `social.reaction.changed` / `social.comment.changed` (`SocialEvents` trong `@app/contracts`) mang **số đếm mới nhất**.
 
 ## Thêm tính năng cho service khác (ví dụ commerce)
 

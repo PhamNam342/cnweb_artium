@@ -825,6 +825,19 @@ SERVICES = [
                     "updated_at timestamptz NN",
                 ],
             },
+            "artwork_summaries": {
+                "desc": "PROJECTION từ catalog (catalog.artwork.*): chủ tác phẩm + có đang công khai không, "
+                "để like / bình luận / gắn vào moment mà không gọi sang catalog. Gỡ / xóa: giữ dòng, is_public = false.",
+                "cols": [
+                    "artwork_id uuid PK REF(catalog.artworks)",
+                    "seller_id uuid NN REF(identity.users)",
+                    "title varchar(100) NN",
+                    "cover_image_url varchar(1024)",
+                    "is_public boolean NN  # status published | sold_out",
+                    "updated_at timestamptz NN",
+                ],
+                "indexes": ["(seller_id) WHERE is_public"],
+            },
         },
     },
     # ==================================================================================
@@ -975,7 +988,7 @@ EVENTS = [
     ("identity.email_verification.requested", "identity", "identity.mailer (gửi email xác minh qua SMTP; sau này chuyển sang social)"),
     ("identity.password_reset.requested", "identity", "identity.mailer (gửi email đặt lại mật khẩu qua SMTP; sau này chuyển sang social)"),
     ("identity.seller_profile.upserted", "identity", "catalog (seller_summaries), social (user_summaries)"),
-    ("catalog.artwork.published / updated / archived", "catalog", "social (artwork summary), commerce (vô hiệu giỏ hàng nếu ngừng bán)"),
+    ("catalog.artwork.published / updated / archived", "catalog", "social (artwork_summaries), commerce (vô hiệu giỏ hàng nếu ngừng bán)"),
     ("catalog.reservation.failed", "catalog", "commerce (hủy đơn vì hết hàng)"),
     ("commerce.order.created", "commerce", "catalog (tạo reservation)"),
     ("commerce.order.paid", "commerce", "catalog (confirm reservation), crm (cập nhật contact), social (thông báo seller + buyer)"),

@@ -16,6 +16,7 @@
     "test:coverage": "npm --prefix be run test:cov && npm --prefix FE run test:coverage",
     "migrate": "npm --prefix be run migrate -- all run",
     "seed": "npm --prefix be run seed",
+    "sync:social": "npm --prefix be run sync:social",
     "db:inspect": "npm --prefix be run db:inspect --",
     "test:e2e": "npm --prefix be run test:e2e",
     "docs:db": "python3 docs/database/tools/generate.py"
